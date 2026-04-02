@@ -1,0 +1,7 @@
+import { Inngest } from "inngest";
+
+export const inngest = new Inngest({
+  id: "nudge",
+  name: "Nudge",
+  // eventKey is taken from INNGEST_EVENT_KEY env automatically
+});

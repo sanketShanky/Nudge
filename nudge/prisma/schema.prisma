@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  plan        Plan     @default(FREE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members      Member[]
+  meetings     Meeting[]
+  integrations Integration[]
+  invites      Invite[]
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  avatarUrl     String?
+  slackUserId   String?
+  timezone      String   @default("UTC")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  memberships   Member[]
+  actionItems   ActionItem[] @relation("AssignedItems")
+  createdItems  ActionItem[] @relation("CreatedItems")
+  meetings      MeetingAttendee[]
+  createdMeetings Meeting[]  @relation("CreatedMeetings")
+}
+
+model Member {
+  id             String       @id @default(cuid())
+  role           MemberRole   @default(MEMBER)
+  joinedAt       DateTime     @default(now())
+
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+}
+
+model Invite {
+  id             String       @id @default(cuid())
+  email          String
+  role           MemberRole   @default(MEMBER)
+  token          String       @unique @default(cuid())
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model Meeting {
+  id             String         @id @default(cuid())
+  title          String
+  meetingDate    DateTime
+  duration       Int?           // minutes
+  transcript     String?        @db.Text
+  audioFileUrl   String?
+  transcriptSource TranscriptSource @default(MANUAL)
+  status         MeetingStatus  @default(PROCESSING)
+  summary        String?        @db.Text
+  zoomMeetingId  String?
+  calendarEventId String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdById    String
+  createdBy      User           @relation("CreatedMeetings", fields: [createdById], references: [id])
+
+  actionItems    ActionItem[]
+  attendees      MeetingAttendee[]
+}
+
+model MeetingAttendee {
+  id        String  @id @default(cuid())
+  email     String
+  name      String?
+
+  meetingId String
+  meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id])
+
+  @@unique([meetingId, email])
+}
+
+model ActionItem {
+  id          String           @id @default(cuid())
+  title       String
+  description String?          @db.Text
+  dueDate     DateTime?
+  status      ActionStatus     @default(OPEN)
+  priority    Priority         @default(MEDIUM)
+  source      String?          // quote from transcript
+  completedAt DateTime?
+  blockedReason String?
+  nudgeSentAt DateTime?
+  nudgeCount  Int              @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  meetingId   String
+  meeting     Meeting          @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  assigneeId  String?
+  assignee    User?            @relation("AssignedItems", fields: [assigneeId], references: [id])
+  createdById String?
+  createdBy   User?            @relation("CreatedItems", fields: [createdById], references: [id])
+
+  nudgeLogs   NudgeLog[]
+}
+
+model NudgeLog {
+  id           String      @id @default(cuid())
+  channel      NudgeChannel
+  sentAt       DateTime    @default(now())
+  messageId    String?     // Slack message ID or email ID
+  status       String      @default("sent")
+
+  actionItemId String
+  actionItem   ActionItem  @relation(fields: [actionItemId], references: [id], onDelete: Cascade)
+}
+
+model Integration {
+  id             String          @id @default(cuid())
+  type           IntegrationType
+  accessToken    String?
+  refreshToken   String?
+  tokenExpiresAt DateTime?
+  metadata       Json?           // store workspace ID, channel ID, etc.
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, type])
+}
+
+enum Plan {
+  FREE
+  TEAM
+  BUSINESS
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MeetingStatus {
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum ActionStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  BLOCKED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TranscriptSource {
+  MANUAL
+  ZOOM
+  GOOGLE_MEET
+  AUDIO_UPLOAD
+  PASTE
+}
+
+enum NudgeChannel {
+  SLACK
+  EMAIL
+}
+
+enum IntegrationType {
+  SLACK
+  GOOGLE_CALENDAR
+  ZOOM
+  JIRA
+  LINEAR
+}
