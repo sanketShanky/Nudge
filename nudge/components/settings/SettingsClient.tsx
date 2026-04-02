@@ -30,6 +30,7 @@ interface Props {
   user: { id: string; name: string | null; email: string; avatarUrl: string | null };
   org: { id: string; name: string; slug: string; plan: string };
   slackConnected: boolean;
+  googleConnected: boolean;
 }
 
 type Tab = "profile" | "workspace" | "notifications" | "integrations" | "billing";
@@ -42,14 +43,15 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: "billing", label: "Plan & Billing", icon: Zap },
 ];
 
-export function SettingsClient({ user, org, slackConnected: initialSlackConnected }: Props) {
+export function SettingsClient({ user, org, slackConnected: initialSlackConnected, googleConnected: initialGoogleConnected }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Handle tab from URL param and Slack OAuth success/error
+  // Handle tab from URL param and OAuth success/error
   const tabParam = searchParams.get("tab") as Tab | null;
   const [activeTab, setActiveTab] = useState<Tab>(tabParam || "profile");
   const [slackConnected, setSlackConnected] = useState(initialSlackConnected);
+  const [googleConnected, setGoogleConnected] = useState(initialGoogleConnected);
 
   useEffect(() => {
     const success = searchParams.get("success");
@@ -58,12 +60,24 @@ export function SettingsClient({ user, org, slackConnected: initialSlackConnecte
       setSlackConnected(true);
       setActiveTab("integrations");
       toast.success("Slack connected successfully!");
+    } else if (success === "google_connected") {
+      setGoogleConnected(true);
+      setActiveTab("integrations");
+      toast.success("Google Calendar connected!");
     } else if (error === "slack_denied") {
       toast.error("Slack connection was cancelled.");
     } else if (error === "slack_not_configured") {
       toast.error("Slack credentials are not configured. Add SLACK_CLIENT_ID to your .env.");
     } else if (error === "slack_token_failed") {
       toast.error("Failed to exchange Slack token. Check your SLACK_CLIENT_SECRET.");
+    } else if (error === "google_denied") {
+      toast.error("Google connection was cancelled.");
+    } else if (error === "google_token_failed") {
+      toast.error("Failed to connect Google. Check your GOOGLE_CLIENT_SECRET.");
+    } else if (error === "google_not_configured") {
+      toast.error("Google OAuth is not configured on the server.");
+    } else if (error === "google_server_error") {
+      toast.error("A server error occurred during Google sign-in.");
     }
   }, []);
 
@@ -423,29 +437,42 @@ export function SettingsClient({ user, org, slackConnected: initialSlackConnecte
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-xl border border-zinc-200 flex items-center justify-center bg-white">
                       <svg className="h-6 w-6" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-4H7l5-8v4h4l-5 8z" />
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                       </svg>
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <h4 className="font-semibold text-zinc-900">Google Calendar</h4>
-                        <Badge variant="outline" className="text-zinc-400">
-                          Not connected
-                        </Badge>
+                        {googleConnected ? (
+                          <Badge className="bg-green-100 text-green-700 border-green-200">
+                            <CheckCircle2 className="h-3 w-3 mr-1" /> Connected
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-zinc-400">Not connected</Badge>
+                        )}
                       </div>
                       <p className="text-sm text-zinc-500 mt-0.5">
                         Auto-import meeting transcripts from Google Meet recordings.
                       </p>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      toast.info("Google OAuth — add GOOGLE_CLIENT_ID to .env to enable")
-                    }
-                  >
-                    Connect <ExternalLink className="h-3.5 w-3.5 ml-2" />
-                  </Button>
+                  {googleConnected ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => toast.info("To disconnect Google, revoke access at myaccount.google.com/permissions.")}
+                    >
+                      Disconnect
+                    </Button>
+                  ) : (
+                    <a href="/api/google/connect">
+                      <Button variant="outline">
+                        Connect <ExternalLink className="h-3.5 w-3.5 ml-2" />
+                      </Button>
+                    </a>
+                  )}
                 </div>
               </div>
 
