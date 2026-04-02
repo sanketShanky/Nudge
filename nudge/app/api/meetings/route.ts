@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { prisma } from "@/lib/db/prisma";
 import { extractActionItems } from "@/lib/ai/extract-action-items";
 import { NextRequest, NextResponse } from "next/server";
